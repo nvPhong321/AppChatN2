@@ -124,6 +124,36 @@ extension LoginController: UIImagePickerControllerDelegate,UINavigationControlle
         })
     }
     
+    func handleLogin(){
+        guard let email = emailTextField.text, let password = passwordTextField.text else{
+            print("Form is not valid")
+            return
+        }
+        
+        if email.isEmpty || password.isEmpty{
+            self.createAlert(title: "Warning", message: "Please input email, password !!!")
+            return
+        }else{
+            
+            Auth.auth().signIn(withEmail: email, password: password, completion: {(user,error) in
+             if Reachability.isConnectedToNetwork(){
+                if error != nil{
+                    print(error)
+                    self.createAlert(title: "Error", message: "email or password error!!!")
+                    return
+                }
+                self.historychatController?.fetchUserAndSetupNavBarTitle()
+                self.dismiss(animated: true, completion: nil)
+                
+            }else{
+                self.createAlert(title: "Warning", message: "Internet connection not available !!!")
+            }
+                
+            })
+        }
+    }
+    
+    
     func createAlert(title:String, message:String){
         
         var alert = UIAlertController(title: title, message: message,  preferredStyle: .alert)

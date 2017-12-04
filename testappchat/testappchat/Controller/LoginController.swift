@@ -38,8 +38,50 @@ class LoginController: UIViewController {
         button.layer.cornerRadius = 5
         button.layer.masksToBounds = true
         
+        button.addTarget(self, action: #selector(handleLoginRegister), for: .touchUpInside)
+        
         return button
     }()
+    
+    @objc func handleLoginRegister(){
+        if loginRegisterSegmentedcontrol.selectedSegmentIndex == 0 {
+            handleLogin()
+        }else{
+            handleCheckUserNameRegister()
+        }
+    }
+    
+    let loginRegisterSegmentedcontrol: UISegmentedControl = {
+        let sg = UISegmentedControl(items: ["Login", "Register"])
+        sg.translatesAutoresizingMaskIntoConstraints = false
+        sg.tintColor = UIColor.white
+        sg.selectedSegmentIndex = 1
+        sg.addTarget(self, action: #selector(handleLoginRegisterChanged), for: .valueChanged)
+        return sg
+    }()
+    
+    @objc func handleLoginRegisterChanged(){
+        let title = loginRegisterSegmentedcontrol.titleForSegment(at: loginRegisterSegmentedcontrol.selectedSegmentIndex)
+        registerButton.setTitle(title, for: .normal)
+        
+        //change height og inputContainerView
+        inputContainerViewHeightAnchor?.constant = loginRegisterSegmentedcontrol.selectedSegmentIndex == 0 ? 100 :150
+        
+        //change height nametextfield
+        nametextfieldHeightAnchor?.isActive = false
+        nametextfieldHeightAnchor = nameTextField.heightAnchor.constraint(equalTo:  inputContainerView.heightAnchor, multiplier:  loginRegisterSegmentedcontrol.selectedSegmentIndex == 0 ? 0 : 1/3)
+        nametextfieldHeightAnchor?.isActive = true
+        
+        //change height emailtextfield
+        emailtextfieldHeightAnchor?.isActive = false
+        emailtextfieldHeightAnchor = emailTextField.heightAnchor.constraint(equalTo:  inputContainerView.heightAnchor, multiplier:  loginRegisterSegmentedcontrol.selectedSegmentIndex == 0 ? 1/2 : 1/3)
+        emailtextfieldHeightAnchor?.isActive = true
+        
+        //change height passwordtextfield
+        passwordtextfieldHeightAnchor?.isActive = false
+        passwordtextfieldHeightAnchor = passwordTextField.heightAnchor.constraint(equalTo:  inputContainerView.heightAnchor, multiplier:  loginRegisterSegmentedcontrol.selectedSegmentIndex == 0 ? 1/2 : 1/3)
+        passwordtextfieldHeightAnchor?.isActive = true
+    }
     
     lazy var profileImageView: UIImageView = {
         let imgProFile = UIImageView()
@@ -101,9 +143,17 @@ class LoginController: UIViewController {
         setupInputsContainerView()
         setupRegisterButton()
         setupImageProfile()
+        setupLoginRegisterSegmentedControl()
     
     }
-
+    
+    func setupLoginRegisterSegmentedControl(){
+        loginRegisterSegmentedcontrol.centerXAnchor.constraint(equalTo: view.centerXAnchor).isActive = true
+        loginRegisterSegmentedcontrol.bottomAnchor.constraint(equalTo: inputContainerView.topAnchor , constant: -12).isActive = true
+        loginRegisterSegmentedcontrol.widthAnchor.constraint(equalTo: inputContainerView.widthAnchor, multiplier:0.5).isActive = true
+        loginRegisterSegmentedcontrol.heightAnchor.constraint(equalToConstant: 36).isActive = true
+    }
+    
     func setupImageProfile(){
         // x, y, width, height contraints
         profileImageView.centerXAnchor.constraint(equalTo: view.centerXAnchor).isActive = true
