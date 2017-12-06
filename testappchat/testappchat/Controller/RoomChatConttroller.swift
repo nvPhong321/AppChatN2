@@ -23,11 +23,11 @@ class RoomChatController: UICollectionViewController, UITextFieldDelegate, UICol
     var messages = [Messages]()
     
     func obseverMessage(){
-        guard let uid = Auth.auth().currentUser?.uid else {
+        guard let uid = Auth.auth().currentUser?.uid, let toId = user?.UserID else {
             return
         }
         
-        let userMessageRef = Database.database().reference().child("user-message").child(uid)
+        let userMessageRef = Database.database().reference().child("user-message").child(uid).child(toId)
         
         userMessageRef.observe(.childAdded, with: { (Snap) in
             let messId = Snap.key
@@ -70,9 +70,10 @@ class RoomChatController: UICollectionViewController, UITextFieldDelegate, UICol
     override func viewDidLoad() {
         super.viewDidLoad()
         collectionView?.contentInset = UIEdgeInsets(top: 8, left: 0, bottom: 58, right: 0)
-        collectionView?.scrollIndicatorInsets = UIEdgeInsets(top: 0, left: 0, bottom: 50, right: 0)
+        //collectionView?.scrollIndicatorInsets = UIEdgeInsets(top: 0, left: 0, bottom: 50, right: 0)
         collectionView?.backgroundColor = UIColor.white
         collectionView?.alwaysBounceVertical = true
+        collectionView?.keyboardDismissMode = .interactive
         collectionView?.register(RoomChatMessageViewCell.self, forCellWithReuseIdentifier: cellId)
         navigationItem.leftBarButtonItem = UIBarButtonItem(title: "Back", style: .plain, target: self, action: #selector(handleBack))
     }
@@ -122,31 +123,6 @@ class RoomChatController: UICollectionViewController, UITextFieldDelegate, UICol
         super.viewDidDisappear(animated)
     }
     
-    func setupkeyBoard(){
-        NotificationCenter.default.addObserver(self, selector: #selector(handleKeyBoardShow), name: NSNotification.Name.UIKeyboardWillShow, object: nil)
-        
-        NotificationCenter.default.addObserver(self, selector: #selector(handleKeyBoardHide), name: NSNotification.Name.UIKeyboardWillHide, object: nil)
-    }
-    
-    @objc func handleKeyBoardHide(notification: NSNotification){
-        let keyBoardDuration = (notification.userInfo![UIKeyboardAnimationDurationUserInfoKey] as? NSNumber)?.doubleValue
-        containerViewBottomAnchor?.constant  = 0
-        UIView.animate(withDuration: keyBoardDuration!){
-            self.view.layoutIfNeeded()
-        }
-    }
-    
-    @objc func handleKeyBoardShow(notification: NSNotification){
-        let keyboardFrame = (notification.userInfo![UIKeyboardFrameBeginUserInfoKey] as? NSValue)?.cgRectValue
-        let keyBoardDuration = (notification.userInfo![UIKeyboardAnimationDurationUserInfoKey] as? NSNumber)?.doubleValue
-        
-        print(keyboardFrame)
-        containerViewBottomAnchor?.constant  = -keyboardFrame!.height
-        
-        UIView.animate(withDuration: keyBoardDuration!){
-            self.view.layoutIfNeeded()
-        }
-    }
     override func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
         return messages.count
     }
@@ -214,56 +190,15 @@ class RoomChatController: UICollectionViewController, UITextFieldDelegate, UICol
         dismiss(animated: true, completion: nil)
     }
     
-    var containerViewBottomAnchor: NSLayoutConstraint?
-    
-    func setupInputComponent(){
-        let containerview = UIView()
-        containerview.backgroundColor = UIColor.white
-        containerview.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(containerview)
-        
-        containerview.leftAnchor.constraint(equalTo: view.leftAnchor).isActive = true
-        
-        containerViewBottomAnchor = containerview.bottomAnchor.constraint(equalTo: view.bottomAnchor)
-        containerViewBottomAnchor?.isActive = true
-        
-        containerview.widthAnchor.constraint(equalTo: view.widthAnchor).isActive = true
-        containerview.heightAnchor.constraint(equalToConstant: 50).isActive = true
-        
-        containerview.addSubview(sendMessButton)
-        
-        sendMessButton.rightAnchor.constraint(equalTo: containerview.rightAnchor).isActive = true
-        sendMessButton.centerYAnchor.constraint(equalTo: containerview.centerYAnchor).isActive = true
-        sendMessButton.widthAnchor.constraint(equalToConstant: 80).isActive = true
-        sendMessButton.heightAnchor.constraint(equalTo: containerview.heightAnchor).isActive = true
-        
-        containerview.addSubview(inputTextField)
-        
-        inputTextField.leftAnchor.constraint(equalTo: containerview.leftAnchor, constant: 8).isActive = true
-        inputTextField.centerYAnchor.constraint(equalTo: containerview.centerYAnchor).isActive = true
-        inputTextField.rightAnchor.constraint(equalTo: sendMessButton.leftAnchor).isActive = true
-        inputTextField.heightAnchor.constraint(equalTo:  containerview.heightAnchor).isActive = true
-        
-        let separatorLineView = UIView()
-        separatorLineView.backgroundColor = UIColor(r:220, g:220, b:220)
-        separatorLineView.translatesAutoresizingMaskIntoConstraints = false
-        containerview.addSubview(separatorLineView)
-        
-        separatorLineView.leftAnchor.constraint(equalTo: containerview.leftAnchor).isActive = true
-        separatorLineView.topAnchor.constraint(equalTo: containerview.topAnchor).isActive = true
-        separatorLineView.widthAnchor.constraint(equalTo: containerview.widthAnchor).isActive = true
-        separatorLineView.heightAnchor.constraint(equalToConstant: 1).isActive = true
-    }
-    
     @objc func textFieldsIsNotEmpty(sender: UITextField) {
         sender.text = sender.text?.trimmingCharacters(in: .whitespaces)
         
         guard let text = inputTextField.text, !text.isEmpty else {
-            self.sendMessButton.isHidden = true
+            self.sendMessButton.isEnabled = false
             return
         }
         // enable okButton if all conditions are met
-        self.sendMessButton.isHidden = false
+        self.sendMessButton.isEnabled = true
     }
     
     @objc func handleSend(){
@@ -280,11 +215,11 @@ class RoomChatController: UICollectionViewController, UITextFieldDelegate, UICol
                     return
                 }
                 
-                let userMessRef = Database.database().reference().child("user-message").child(fromID!)
+                let userMessRef = Database.database().reference().child("user-message").child(fromID!).child(toID!)
                 let messId = childRef.key
                 userMessRef.updateChildValues([messId: 1])
                 
-                let recipientUserMessageRef = Database.database().reference().child("user-message").child(toID!)
+                let recipientUserMessageRef = Database.database().reference().child("user-message").child(toID!).child(fromID!)
                 recipientUserMessageRef.updateChildValues([messId: 1])
             }
             inputTextField.text = ""
