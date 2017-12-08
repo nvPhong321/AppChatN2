@@ -57,6 +57,24 @@ class HistoryChatController: UITableViewController {
         messageReference.observeSingleEvent(of: .value, with: { (snapshots) in
             
             if let value = snapshots.value as? [String: AnyObject] {
+                let message = Messages(dictionary: value)
+                
+                if let chatPartnerId = message.chatParterId(){
+                    self.messageDictionary[chatPartnerId] = message
+                }
+                self.timer?.invalidate()
+                self.timer = Timer.scheduledTimer(timeInterval: 1, target: self, selector: #selector(self.handleReloadDataTable), userInfo: nil, repeats: false)
+            }
+        }, withCancel: nil)
+        
+    }
+    
+    private func fetchMessageWithMessageId(messageId: String){
+        let messageReference = Database.database().reference().child("messages").child(messageId)
+        
+        messageReference.observeSingleEvent(of: .value, with: { (snapshots) in
+            
+            if let value = snapshots.value as? [String: AnyObject] {
                 let message = Messages()
                 
                 message.setValuesForKeys(value)
@@ -70,7 +88,7 @@ class HistoryChatController: UITableViewController {
         }, withCancel: nil)
         
     }
-    
+
     @objc func handleReloadDataTable(){
         self.messages = Array(self.messageDictionary.values)
         self.messages.sort(by: {(message1, message2) -> Bool in

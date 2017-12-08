@@ -9,7 +9,7 @@
 import UIKit
 import Firebase
 
-class RoomChatController: UICollectionViewController, UITextFieldDelegate, UICollectionViewDelegateFlowLayout{
+class RoomChatController: UICollectionViewController, UITextFieldDelegate, UICollectionViewDelegateFlowLayout,UIImagePickerControllerDelegate, UINavigationControllerDelegate{
     
     let cellId = "cellId"
     
@@ -36,12 +36,15 @@ class RoomChatController: UICollectionViewController, UITextFieldDelegate, UICol
                 guard let dictionary = snapShot.value as? [String: AnyObject] else{
                     return
                 }
-                let message = Messages()
-                message.setValuesForKeys(dictionary)
+                let message = Messages(dictionary: dictionary)
                 
                 if message.chatParterId() == self.user?.UserID {
                     self.messages.append(message)
-                    DispatchQueue.main.async { self.collectionView?.reloadData() }
+                    DispatchQueue.main.async {
+                        self.collectionView?.reloadData()
+                        let indexpath = IndexPath(item: self.messages.count - 1, section: 0)
+                        self.collectionView?.scrollToItem(at: indexpath , at: .bottom, animated: true)
+                    }
                 }
                 
             }, withCancel: nil)
@@ -61,10 +64,21 @@ class RoomChatController: UICollectionViewController, UITextFieldDelegate, UICol
     let sendMessButton: UIButton = {
         let sendButton = UIButton(type: .system)
         sendButton.setTitle("Send", for: .normal)
+        sendButton.titleLabel?.font = UIFont.boldSystemFont(ofSize: 16)
         sendButton.setTitleColor(UIColor(r:33, g:159, b:254), for: .normal)
         sendButton.translatesAutoresizingMaskIntoConstraints = false
         sendButton.addTarget(self, action: #selector(handleSend), for: .touchUpInside)
         return sendButton
+    }()
+    
+    lazy var uploadImage: UIImageView = {
+        let imgUpload = UIImageView()
+        imgUpload.image = UIImage(named: "sendimage")
+        imgUpload.translatesAutoresizingMaskIntoConstraints = false
+        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleUploadTap))
+        imgUpload.addGestureRecognizer(tapGesture)
+        imgUpload.isUserInteractionEnabled = true
+        return imgUpload
     }()
     
     override func viewDidLoad() {
@@ -76,6 +90,18 @@ class RoomChatController: UICollectionViewController, UITextFieldDelegate, UICol
         collectionView?.keyboardDismissMode = .interactive
         collectionView?.register(RoomChatMessageViewCell.self, forCellWithReuseIdentifier: cellId)
         navigationItem.leftBarButtonItem = UIBarButtonItem(title: "Back", style: .plain, target: self, action: #selector(handleBack))
+        setupkeyBoard()
+    }
+    
+    func setupkeyBoard(){
+        NotificationCenter.default.addObserver(self, selector: #selector(handleKeyBoardShow), name: NSNotification.Name.UIKeyboardDidShow , object: nil)
+    }
+    
+    @objc func handleKeyBoardShow(){
+        if messages.count > 0 {
+            let indexpath = IndexPath(item: self.messages.count - 1, section: 0)
+            collectionView?.scrollToItem(at: indexpath, at: .top, animated: true)
+        }
     }
     
     override var inputAccessoryView: UIView?{
@@ -93,23 +119,31 @@ class RoomChatController: UICollectionViewController, UITextFieldDelegate, UICol
         containerview.frame = CGRect(x: 0, y: 0, width: view.frame.width, height: 50)
         containerview.backgroundColor = UIColor.white
         
-        containerview.addSubview(sendMessButton)
+        containerview.addSubview(self.uploadImage)
         
-        sendMessButton.rightAnchor.constraint(equalTo: containerview.rightAnchor).isActive = true
-        sendMessButton.centerYAnchor.constraint(equalTo: containerview.centerYAnchor).isActive = true
-        sendMessButton.widthAnchor.constraint(equalToConstant: 80).isActive = true
-        sendMessButton.heightAnchor.constraint(equalTo: containerview.heightAnchor).isActive = true
+        self.uploadImage.leftAnchor.constraint(equalTo: containerview.leftAnchor, constant: 8).isActive = true
+        self.uploadImage.centerYAnchor.constraint(equalTo: containerview.centerYAnchor).isActive = true
+        self.uploadImage.widthAnchor.constraint(equalToConstant: 30).isActive = true
+        self.uploadImage.heightAnchor.constraint(equalToConstant: 30).isActive = true
         
-        containerview.addSubview(inputTextField)
+        containerview.addSubview(self.sendMessButton)
         
-        inputTextField.leftAnchor.constraint(equalTo: containerview.leftAnchor, constant: 8).isActive = true
-        inputTextField.centerYAnchor.constraint(equalTo: containerview.centerYAnchor).isActive = true
-        inputTextField.rightAnchor.constraint(equalTo: sendMessButton.leftAnchor).isActive = true
-        inputTextField.heightAnchor.constraint(equalTo:  containerview.heightAnchor).isActive = true
+        self.sendMessButton.rightAnchor.constraint(equalTo: containerview.rightAnchor).isActive = true
+        self.sendMessButton.centerYAnchor.constraint(equalTo: containerview.centerYAnchor).isActive = true
+        self.sendMessButton.widthAnchor.constraint(equalToConstant: 80).isActive = true
+        self.sendMessButton.heightAnchor.constraint(equalTo: containerview.heightAnchor).isActive = true
+        
+        containerview.addSubview(self.inputTextField)
+        
+        self.inputTextField.leftAnchor.constraint(equalTo: self.uploadImage.rightAnchor, constant: 8).isActive = true
+        self.inputTextField.centerYAnchor.constraint(equalTo: containerview.centerYAnchor).isActive = true
+        self.inputTextField.rightAnchor.constraint(equalTo: self.sendMessButton.leftAnchor).isActive = true
+        self.inputTextField.heightAnchor.constraint(equalTo:  containerview.heightAnchor).isActive = true
         
         let separatorLineView = UIView()
         separatorLineView.backgroundColor = UIColor(r:220, g:220, b:220)
         separatorLineView.translatesAutoresizingMaskIntoConstraints = false
+        
         containerview.addSubview(separatorLineView)
         
         separatorLineView.leftAnchor.constraint(equalTo: containerview.leftAnchor).isActive = true
@@ -121,6 +155,7 @@ class RoomChatController: UICollectionViewController, UITextFieldDelegate, UICol
     
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
+        NotificationCenter.default.removeObserver(self)
     }
     
     override func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
@@ -136,11 +171,26 @@ class RoomChatController: UICollectionViewController, UITextFieldDelegate, UICol
         //setup bubbles
         setupCell(cell: cell, message: message)
         
-        cell.bubbleWidthAnchor?.constant = estimateFrameFortext(text: message.text!).width + 32
+        if let text = message.text{
+            cell.bubbleWidthAnchor?.constant = estimateFrameFortext(text: text).width + 32
+        }else if message.imageUrl != nil{
+            cell.bubbleWidthAnchor?.constant = 200
+        }
         return cell
     }
     
     private func setupCell(cell: RoomChatMessageViewCell, message: Messages){
+        
+        if let messageImageUrl = message.imageUrl{
+            cell.messageImage.loadimageUsingWithCacheUrl(urlString: messageImageUrl)
+            cell.messageImage.isHidden = false
+            cell.textChat.isEditable = false
+            cell.bubblesView.backgroundColor = UIColor.clear
+        }else{
+            cell.bubblesView.backgroundColor = UIColor.clear
+            cell.messageImage.isHidden = true
+            cell.textChat.isEditable = false
+        }
         
         if let profileImage = self.user?.profileImageUrl{
             cell.profileImageviewSender.loadimageUsingWithCacheUrl(urlString: profileImage)
@@ -153,6 +203,7 @@ class RoomChatController: UICollectionViewController, UITextFieldDelegate, UICol
             cell.bubbleRightAnchor?.isActive = true
             cell.bubbleLeftAnchor?.isActive = false
             cell.profileImageviewSender.isHidden = true
+            cell.textChat.isEditable = false
         }else{
             //receiver
             cell.bubblesView.backgroundColor = UIColor(r:240, g:240, b:240)
@@ -160,6 +211,7 @@ class RoomChatController: UICollectionViewController, UITextFieldDelegate, UICol
             cell.profileImageviewSender.isHidden = false
             cell.bubbleRightAnchor?.isActive = false
             cell.bubbleLeftAnchor?.isActive = true
+            cell.textChat.isEditable = false
         }
     }
     
@@ -171,8 +223,11 @@ class RoomChatController: UICollectionViewController, UITextFieldDelegate, UICol
     func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {
         
         var height: CGFloat = 80
-        if let text = messages[indexPath.item].text{
+        let message = messages[indexPath.item]
+        if let text = message.text{
             height = estimateFrameFortext(text: text).height + 20
+        }else if let imageWidth = message.imageWidth?.floatValue, let imageHeight = message.imageHeight?.floatValue{
+            height = CGFloat(imageHeight / imageWidth * 200)
         }
         
         let width = UIScreen.main.bounds.width
@@ -184,6 +239,82 @@ class RoomChatController: UICollectionViewController, UITextFieldDelegate, UICol
         let size = CGSize(width: 200, height: 1000)
         let options = NSStringDrawingOptions.usesFontLeading.union(.usesLineFragmentOrigin)
         return NSString(string: text).boundingRect(with: size, options: options, attributes: [NSAttributedStringKey.font: UIFont.systemFont(ofSize: 16)], context: nil)
+    }
+    
+    @objc func handleUploadTap(){
+        let imagePicker = UIImagePickerController()
+        imagePicker.allowsEditing = true
+        imagePicker.delegate = self
+        present(imagePicker, animated: true, completion: nil)
+    }
+    
+    func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [String : Any]) {
+        var selectedImageFromPicker: UIImage?
+        if let editedImage = info["UIImagePickerControllerOriginalImage"] as? UIImage{
+            selectedImageFromPicker = editedImage
+        }else if let originalImage = info["UIImagePickerControllerOriginalImage"] as? UIImage{
+            selectedImageFromPicker = originalImage
+        }
+        
+        if let selectedImage = selectedImageFromPicker{
+            uploadToFirebaseStorageUsingImage(image: selectedImage)
+        }
+        dismiss(animated: true, completion: nil)
+    }
+    
+    func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+        dismiss(animated: true, completion: nil)
+    }
+    
+    private func uploadToFirebaseStorageUsingImage(image: UIImage){
+        let nameImage = NSUUID().uuidString
+        let userId = Auth.auth().currentUser?.uid
+        let storageRef = Storage.storage().reference().child("message_images").child(userId!).child("\(nameImage).jpg")
+        
+        if let uploadData = UIImageJPEGRepresentation(image, 0.1){
+            storageRef.putData(uploadData, metadata: nil, completion: { (metadata,error) in
+                if error != nil{
+                    print(error)
+                    return
+                }
+                
+                if let imageViewUrl = metadata?.downloadURL()?.absoluteString{
+                    self.sendMessageWithUrl(imageUrl: imageViewUrl, image: image)
+                }
+                
+            })
+        }
+    }
+    
+    private func sendMessageWithUrl(imageUrl: String, image: UIImage){
+        let properties: [String: AnyObject] = ["imageUrl": imageUrl,"imageWidth": image.size.width,"imageHeight": image.size.height] as [String : AnyObject]
+        sendmessageWithProperties(properties: properties)
+        
+    }
+    
+    private func sendmessageWithProperties(properties: [String: AnyObject]){
+        let ref = Database.database().reference().child("messages")
+        let toID = user?.UserID
+        let fromID = Auth.auth().currentUser?.uid
+        let timeStamp = Int(NSDate().timeIntervalSince1970)
+        let childRef = ref.childByAutoId()
+        var values: [String: AnyObject] = ["toID": toID,"fromID": fromID, "timestamp": timeStamp] as [String : AnyObject]
+        
+        properties.forEach({values[$0] = $1})
+        
+        childRef.updateChildValues(values){ (error, ref) in
+            if error != nil{
+                print(error)
+                return
+            }
+            self.inputTextField.text = nil
+            let userMessRef = Database.database().reference().child("user-message").child(fromID!).child(toID!)
+            let messId = childRef.key
+            userMessRef.updateChildValues([messId: 1])
+            
+            let recipientUserMessageRef = Database.database().reference().child("user-message").child(toID!).child(fromID!)
+            recipientUserMessageRef.updateChildValues([messId: 1])
+        }
     }
     
     @objc func handleBack(){
@@ -202,27 +333,9 @@ class RoomChatController: UICollectionViewController, UITextFieldDelegate, UICol
     }
     
     @objc func handleSend(){
-            let ref = Database.database().reference().child("messages")
-            let toID = user?.UserID
-            let fromID = Auth.auth().currentUser?.uid
-            let timeStamp = Int(NSDate().timeIntervalSince1970)
-            let childRef = ref.childByAutoId()
-            let values = ["text": inputTextField.text!,"toID": toID,"fromID": fromID, "timestamp": timeStamp] as [String : Any]
-
-            childRef.updateChildValues(values){ (error, ref) in
-                if error != nil{
-                    print(error)
-                    return
-                }
-                
-                let userMessRef = Database.database().reference().child("user-message").child(fromID!).child(toID!)
-                let messId = childRef.key
-                userMessRef.updateChildValues([messId: 1])
-                
-                let recipientUserMessageRef = Database.database().reference().child("user-message").child(toID!).child(fromID!)
-                recipientUserMessageRef.updateChildValues([messId: 1])
-            }
-            inputTextField.text = ""
+        let properties = ["text": inputTextField.text!]
+        sendmessageWithProperties(properties: properties as [String : AnyObject])
+        inputTextField.text = ""
     }
     
     func textFieldShouldReturn(textField: UITextField) -> Bool{

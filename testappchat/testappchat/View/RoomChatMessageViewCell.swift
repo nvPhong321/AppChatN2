@@ -37,6 +37,15 @@ class RoomChatMessageViewCell: UICollectionViewCell {
         return image
     }()
     
+    let messageImage: UIImageView = {
+        let image = UIImageView()
+        image.translatesAutoresizingMaskIntoConstraints = false
+        image.layer.cornerRadius = 16
+        image.layer.masksToBounds = true
+        image.contentMode = .scaleAspectFill
+        return image
+    }()
+    
     var bubbleWidthAnchor: NSLayoutConstraint?
     var bubbleRightAnchor: NSLayoutConstraint?
     var bubbleLeftAnchor: NSLayoutConstraint?
@@ -47,6 +56,14 @@ class RoomChatMessageViewCell: UICollectionViewCell {
         addSubview(bubblesView)
         addSubview(textChat)
         addSubview(profileImageviewSender)
+
+        bubblesView.addSubview(messageImage)
+        //messageImage
+        messageImage.leftAnchor.constraint(equalTo: bubblesView.leftAnchor).isActive = true
+        messageImage.rightAnchor.constraint(equalTo: bubblesView.rightAnchor).isActive = true
+        messageImage.topAnchor.constraint(equalTo: bubblesView.topAnchor).isActive = true
+        messageImage.widthAnchor.constraint(equalTo: bubblesView.widthAnchor).isActive = true
+        messageImage.heightAnchor.constraint(equalTo: bubblesView.heightAnchor).isActive = true
         
         //bubbles view
         bubbleRightAnchor = bubblesView.rightAnchor.constraint(equalTo: self.rightAnchor, constant: -8)
