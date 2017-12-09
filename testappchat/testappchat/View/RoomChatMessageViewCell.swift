@@ -10,11 +10,14 @@ import UIKit
 
 class RoomChatMessageViewCell: UICollectionViewCell {
     
+    var roomChatController: RoomChatController?
+    
     let textChat: UITextView = {
         let text = UITextView()
         text.font = UIFont.systemFont(ofSize: 16)
         text.translatesAutoresizingMaskIntoConstraints = false
         text.backgroundColor = UIColor.clear
+        text.isEditable = false
         return text
     }()
     
@@ -37,14 +40,24 @@ class RoomChatMessageViewCell: UICollectionViewCell {
         return image
     }()
     
-    let messageImage: UIImageView = {
-        let image = UIImageView()
-        image.translatesAutoresizingMaskIntoConstraints = false
-        image.layer.cornerRadius = 16
-        image.layer.masksToBounds = true
-        image.contentMode = .scaleAspectFill
-        return image
+    
+    lazy var messageImage: UIImageView = {
+        let imageMess = UIImageView()
+        imageMess.translatesAutoresizingMaskIntoConstraints = false
+        imageMess.layer.cornerRadius = 16
+        imageMess.layer.masksToBounds = true
+        imageMess.contentMode = .scaleAspectFill
+        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleZoom))
+        imageMess.addGestureRecognizer(tapGesture)
+        imageMess.isUserInteractionEnabled = true
+        return imageMess
     }()
+    
+    @objc func handleZoom(tapGesture: UITapGestureRecognizer){
+        if let imageView = tapGesture.view as? UIImageView{
+            self.roomChatController?.performZoomInfoStartingImageView(startingImageView: imageView)
+        }
+    }
     
     var bubbleWidthAnchor: NSLayoutConstraint?
     var bubbleRightAnchor: NSLayoutConstraint?

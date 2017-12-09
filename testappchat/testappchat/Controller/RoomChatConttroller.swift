@@ -165,6 +165,9 @@ class RoomChatController: UICollectionViewController, UITextFieldDelegate, UICol
     override func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
         
         let cell = collectionView.dequeueReusableCell(withReuseIdentifier: cellId, for: indexPath) as! RoomChatMessageViewCell
+        
+        cell.roomChatController = self
+        
         let message = messages[indexPath.row]
         cell.textChat.text = message.text
         
@@ -173,8 +176,10 @@ class RoomChatController: UICollectionViewController, UITextFieldDelegate, UICol
         
         if let text = message.text{
             cell.bubbleWidthAnchor?.constant = estimateFrameFortext(text: text).width + 32
+            cell.textChat.isHidden = false
         }else if message.imageUrl != nil{
             cell.bubbleWidthAnchor?.constant = 200
+            cell.textChat.isHidden = true
         }
         return cell
     }
@@ -184,13 +189,10 @@ class RoomChatController: UICollectionViewController, UITextFieldDelegate, UICol
         if let messageImageUrl = message.imageUrl{
             cell.messageImage.loadimageUsingWithCacheUrl(urlString: messageImageUrl)
             cell.messageImage.isHidden = false
-            cell.textChat.isEditable = false
             cell.bubblesView.backgroundColor = UIColor.clear
         }else{
             cell.bubblesView.backgroundColor = UIColor.clear
-            cell.messageImage.isHidden = true
-            cell.textChat.isEditable = false
-        }
+            cell.messageImage.isHidden = true        }
         
         if let profileImage = self.user?.profileImageUrl{
             cell.profileImageviewSender.loadimageUsingWithCacheUrl(urlString: profileImage)
@@ -203,7 +205,6 @@ class RoomChatController: UICollectionViewController, UITextFieldDelegate, UICol
             cell.bubbleRightAnchor?.isActive = true
             cell.bubbleLeftAnchor?.isActive = false
             cell.profileImageviewSender.isHidden = true
-            cell.textChat.isEditable = false
         }else{
             //receiver
             cell.bubblesView.backgroundColor = UIColor(r:240, g:240, b:240)
@@ -211,7 +212,6 @@ class RoomChatController: UICollectionViewController, UITextFieldDelegate, UICol
             cell.profileImageviewSender.isHidden = false
             cell.bubbleRightAnchor?.isActive = false
             cell.bubbleLeftAnchor?.isActive = true
-            cell.textChat.isEditable = false
         }
     }
     
@@ -341,5 +341,69 @@ class RoomChatController: UICollectionViewController, UITextFieldDelegate, UICol
     func textFieldShouldReturn(textField: UITextField) -> Bool{
         handleSend()
         return true
+    }
+    
+    var startingFrame: CGRect?
+    var backgroundView: UIView!
+    var startingImageView: UIImageView!
+    
+    func performZoomInfoStartingImageView(startingImageView: UIImageView){
+        
+        // get size imageview
+        startingFrame = startingImageView.superview?.convert(startingImageView.frame, to: nil)
+        self.startingImageView = startingImageView
+        self.startingImageView.isHidden = true
+        
+        let zoomImageView = UIImageView(frame: startingFrame!)
+        zoomImageView.backgroundColor = UIColor.clear
+        zoomImageView.image = startingImageView.image
+        zoomImageView.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(handleZoomOut)))
+        zoomImageView.isUserInteractionEnabled = true
+        
+        if let keywindow = UIApplication.shared.keyWindow{
+            
+            self.backgroundView = UIView(frame: keywindow.frame)
+            self.backgroundView.backgroundColor = UIColor.black
+            self.backgroundView.alpha = 0
+            
+            keywindow.addSubview(self.backgroundView)
+            keywindow.addSubview(zoomImageView)
+            
+            UIView.animate(withDuration: 0.5, delay: 0, usingSpringWithDamping: 1, initialSpringVelocity: 1, options: .curveEaseOut, animations:{
+                
+                self.backgroundView.alpha = 1
+                self.inputContainerView.alpha = 0
+                
+                //h2 / w1 = h1/ w1
+                //h2 = h1/ h1 * w1
+                let height = self.startingFrame!.height / self.startingFrame!.width * keywindow.frame.width
+                
+                zoomImageView.frame = CGRect(x: 0, y: 0, width: keywindow.frame.width, height: self.startingFrame!.height)
+                zoomImageView.center = keywindow.center
+                
+            } , completion: nil)
+        }
+    }
+    
+    @objc func handleZoomOut(tapGesture: UITapGestureRecognizer){
+        if let zoomOut = tapGesture.view{
+            
+            //animation zoom out
+            zoomOut.layer.cornerRadius = 16
+            zoomOut.clipsToBounds = true
+            
+            UIView.animate(withDuration: 0.5, delay: 0, usingSpringWithDamping: 1, initialSpringVelocity: 1, options: .curveEaseOut, animations:{
+                
+                zoomOut.frame = self.startingFrame!
+                self.backgroundView?.alpha = 0
+                self.inputContainerView.alpha = 1
+                
+            } , completion:{ (completed: Bool) in
+                
+                //do something here later
+                zoomOut.removeFromSuperview()
+                self.startingImageView.isHidden = false
+            })
+        }
     }
 }
