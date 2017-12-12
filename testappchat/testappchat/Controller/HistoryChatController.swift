@@ -16,6 +16,7 @@ class HistoryChatController: UITableViewController {
     var messageDictionary = [String: Messages]()
     let cellId = "cellId"
     var timer: Timer?
+    var messageID: String?
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -26,11 +27,56 @@ class HistoryChatController: UITableViewController {
         navigationItem.rightBarButtonItem = UIBarButtonItem(image:  image, style: .plain, target:  self, action:  #selector(handleNewMessage))
     
         tableView.register(userCell.self, forCellReuseIdentifier: cellId)
+        tableView.allowsMultipleSelectionDuringEditing = true
+        tableView.separatorStyle = UITableViewCellSeparatorStyle.none
         
         checkIfUserIsLoggedIn()
         
+        
     }
     
+    override func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool {
+        return true
+    }
+    
+    override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath) {
+        
+        guard let uid = Auth.auth().currentUser?.uid else{
+            return
+        }
+        
+        let message = self.messages[indexPath.row]
+        
+        if let chatPartnerId = message.chatParterId(){
+            Database.database().reference().child("user-message").child(uid).child(chatPartnerId).removeValue(completionBlock: { (error, ref) in
+
+                if error != nil{
+                    print(error)
+                    return
+                }
+
+                self.messageDictionary.removeValue(forKey: chatPartnerId)
+                self.timer?.invalidate()
+                self.timer = Timer.scheduledTimer(timeInterval: 1, target: self, selector: #selector(self.handleReloadDataTable), userInfo: nil, repeats: false)
+
+            })
+            
+            Database.database().reference().child("user-message").child(chatPartnerId).child(uid).removeValue(completionBlock: { (error, ref) in
+                
+                if error != nil{
+                    print(error)
+                    return
+                }
+                
+                self.messageDictionary.removeValue(forKey: uid)
+                self.timer?.invalidate()
+                self.timer = Timer.scheduledTimer(timeInterval: 1, target: self, selector: #selector(self.handleReloadDataTable), userInfo: nil, repeats: false)
+                
+            })
+        }
+
+    }
+
     func observeUserMessage(){
         guard let uid = Auth.auth().currentUser?.uid else{
             return
@@ -43,11 +89,17 @@ class HistoryChatController: UITableViewController {
             
             Database.database().reference().child("user-message").child(uid).child(userId).observe(.childAdded, with:{ (snap) in
                 
-                let messageID = snap.key
-                self.fetchMessageWithMessageId(messageId: messageID)
+                self.messageID = snap.key
+                self.fetchMessageWithMessageId(messageId: self.messageID!)
 
             }, withCancel: nil)
             
+        }, withCancel: nil)
+        
+        ref.observe(.childRemoved, with: { (Snapshot) in
+            self.messageDictionary.removeValue(forKey: Snapshot.key)
+            self.timer?.invalidate()
+            self.timer = Timer.scheduledTimer(timeInterval: 1, target: self, selector: #selector(self.handleReloadDataTable), userInfo: nil, repeats: false)
         }, withCancel: nil)
     }
     
@@ -69,26 +121,6 @@ class HistoryChatController: UITableViewController {
         
     }
     
-    private func fetchMessageWithMessageId(messageId: String){
-        let messageReference = Database.database().reference().child("messages").child(messageId)
-        
-        messageReference.observeSingleEvent(of: .value, with: { (snapshots) in
-            
-            if let value = snapshots.value as? [String: AnyObject] {
-                let message = Messages()
-                
-                message.setValuesForKeys(value)
-                
-                if let chatPartnerId = message.chatParterId(){
-                    self.messageDictionary[chatPartnerId] = message
-                }
-                self.timer?.invalidate()
-                self.timer = Timer.scheduledTimer(timeInterval: 1, target: self, selector: #selector(self.handleReloadDataTable), userInfo: nil, repeats: false)
-            }
-        }, withCancel: nil)
-        
-    }
-
     @objc func handleReloadDataTable(){
         self.messages = Array(self.messageDictionary.values)
         self.messages.sort(by: {(message1, message2) -> Bool in

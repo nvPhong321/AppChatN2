@@ -8,6 +8,9 @@
 
 import UIKit
 import Firebase
+import MobileCoreServices
+import AVFoundation
+import SVProgressHUD
 
 class RoomChatController: UICollectionViewController, UITextFieldDelegate, UICollectionViewDelegateFlowLayout,UIImagePickerControllerDelegate, UINavigationControllerDelegate{
     
@@ -57,7 +60,6 @@ class RoomChatController: UICollectionViewController, UITextFieldDelegate, UICol
         textField.placeholder = "Enter message...."
         textField.translatesAutoresizingMaskIntoConstraints = false
         textField.delegate = self
-        textField.addTarget(self, action: #selector(textFieldsIsNotEmpty), for: .editingChanged)
         return textField
     }()
     
@@ -80,11 +82,11 @@ class RoomChatController: UICollectionViewController, UITextFieldDelegate, UICol
         imgUpload.isUserInteractionEnabled = true
         return imgUpload
     }()
+
     
     override func viewDidLoad() {
         super.viewDidLoad()
         collectionView?.contentInset = UIEdgeInsets(top: 8, left: 0, bottom: 58, right: 0)
-        //collectionView?.scrollIndicatorInsets = UIEdgeInsets(top: 0, left: 0, bottom: 50, right: 0)
         collectionView?.backgroundColor = UIColor.white
         collectionView?.alwaysBounceVertical = true
         collectionView?.keyboardDismissMode = .interactive
@@ -169,6 +171,7 @@ class RoomChatController: UICollectionViewController, UITextFieldDelegate, UICol
         cell.roomChatController = self
         
         let message = messages[indexPath.row]
+        cell.message = message
         cell.textChat.text = message.text
         
         //setup bubbles
@@ -181,6 +184,9 @@ class RoomChatController: UICollectionViewController, UITextFieldDelegate, UICol
             cell.bubbleWidthAnchor?.constant = 200
             cell.textChat.isHidden = true
         }
+        
+        cell.playButton.isHidden = message.videoUrl == nil
+        
         return cell
     }
     
@@ -245,10 +251,74 @@ class RoomChatController: UICollectionViewController, UITextFieldDelegate, UICol
         let imagePicker = UIImagePickerController()
         imagePicker.allowsEditing = true
         imagePicker.delegate = self
+        imagePicker.mediaTypes = [kUTTypeImage as String, kUTTypeMovie as String]
         present(imagePicker, animated: true, completion: nil)
     }
     
     func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [String : Any]) {
+        
+        if let videoUrl = info[UIImagePickerControllerMediaURL] as? URL{
+            
+            handleSelectedVideoForInfo(url: videoUrl)
+            
+        }else{
+            
+            handleSelectedImageForInfo(info: info as [String : AnyObject])
+            
+        }
+        dismiss(animated: true, completion: nil)
+    }
+    private func handleSelectedVideoForInfo(url: URL){
+        let userId = Auth.auth().currentUser?.uid
+        let filename = NSUUID().uuidString + ".mov"
+        let uploadTask = Storage.storage().reference().child("message_video").child(userId!).child(filename).putFile(from: url, metadata: nil, completion: {(metadata, error)
+            in
+            
+            if error != nil{
+                print("upload video failed : ",error)
+            }
+            
+            if let storageUrl = metadata?.downloadURL()?.absoluteString{
+                
+                if let thumbnail = self.thumbnailImageForVideoUrl(videoUrl: url){
+                    
+                    self.uploadToFirebaseStorageUsingImage(image: thumbnail, completion: { (imageUrl) in
+                        
+                        let properties: [String: AnyObject] = ["imageUrl":imageUrl,"videoUrl": storageUrl,"imageWidth": thumbnail.size.width,"imageHeight": thumbnail.size.height] as [String : AnyObject]
+                        self.sendmessageWithProperties(properties: properties)
+                        
+                    })
+                }
+            }
+        })
+        
+        
+        uploadTask.observe(.progress, handler: { (snapshot) in
+            if let count = snapshot.progress?.completedUnitCount{
+                SVProgressHUD.show(withStatus: "plese wait")
+                self.inputTextField.resignFirstResponder()
+            }
+        })
+        
+        uploadTask.observe(.success, handler: { (snapshot) in
+            SVProgressHUD.dismiss()
+        })
+    }
+    
+    private func thumbnailImageForVideoUrl(videoUrl: URL) -> UIImage?{
+        let asset = AVAsset(url: videoUrl)
+        let imageGenerator = AVAssetImageGenerator(asset: asset)
+        
+        do{
+            let thumbnailCGImage = try imageGenerator.copyCGImage(at: CMTimeMake(1, 60), actualTime: nil)
+            return UIImage(cgImage: thumbnailCGImage)
+        }catch let error{
+            print(error)
+        }
+        return  nil
+    }
+    
+    private func handleSelectedImageForInfo(info: [String: AnyObject]){
         var selectedImageFromPicker: UIImage?
         if let editedImage = info["UIImagePickerControllerOriginalImage"] as? UIImage{
             selectedImageFromPicker = editedImage
@@ -257,16 +327,17 @@ class RoomChatController: UICollectionViewController, UITextFieldDelegate, UICol
         }
         
         if let selectedImage = selectedImageFromPicker{
-            uploadToFirebaseStorageUsingImage(image: selectedImage)
+            uploadToFirebaseStorageUsingImage(image: selectedImage, completion: { (imageUrl) in
+                self.sendMessageWithUrl(imageUrl: imageUrl, image: selectedImage)
+            })
         }
-        dismiss(animated: true, completion: nil)
     }
     
     func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
         dismiss(animated: true, completion: nil)
     }
     
-    private func uploadToFirebaseStorageUsingImage(image: UIImage){
+    private func uploadToFirebaseStorageUsingImage(image: UIImage, completion: @escaping (_ imageUrl: String) -> ()){
         let nameImage = NSUUID().uuidString
         let userId = Auth.auth().currentUser?.uid
         let storageRef = Storage.storage().reference().child("message_images").child(userId!).child("\(nameImage).jpg")
@@ -279,7 +350,7 @@ class RoomChatController: UICollectionViewController, UITextFieldDelegate, UICol
                 }
                 
                 if let imageViewUrl = metadata?.downloadURL()?.absoluteString{
-                    self.sendMessageWithUrl(imageUrl: imageViewUrl, image: image)
+                    completion(imageViewUrl)
                 }
                 
             })
@@ -319,17 +390,6 @@ class RoomChatController: UICollectionViewController, UITextFieldDelegate, UICol
     
     @objc func handleBack(){
         dismiss(animated: true, completion: nil)
-    }
-    
-    @objc func textFieldsIsNotEmpty(sender: UITextField) {
-        sender.text = sender.text?.trimmingCharacters(in: .whitespaces)
-        
-        guard let text = inputTextField.text, !text.isEmpty else {
-            self.sendMessButton.isEnabled = false
-            return
-        }
-        // enable okButton if all conditions are met
-        self.sendMessButton.isEnabled = true
     }
     
     @objc func handleSend(){
@@ -373,6 +433,7 @@ class RoomChatController: UICollectionViewController, UITextFieldDelegate, UICol
                 
                 self.backgroundView.alpha = 1
                 self.inputContainerView.alpha = 0
+                self.inputTextField.resignFirstResponder()
                 
                 //h2 / w1 = h1/ w1
                 //h2 = h1/ h1 * w1

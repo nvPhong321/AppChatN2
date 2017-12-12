@@ -7,10 +7,29 @@
 //
 
 import UIKit
+import AVFoundation
 
 class RoomChatMessageViewCell: UICollectionViewCell {
     
+    var message: Messages?
     var roomChatController: RoomChatController?
+    
+    let activityIndicatorView: UIActivityIndicatorView = {
+        let aiv = UIActivityIndicatorView(activityIndicatorStyle: .whiteLarge)
+        aiv.translatesAutoresizingMaskIntoConstraints = false
+        aiv.hidesWhenStopped = true
+        return aiv
+    }()
+    
+    lazy var playButton: UIButton = {
+        let button = UIButton(type: .system)
+        let image = UIImage(named: "playbutton")
+        button.setImage(image, for: .normal)
+        button.tintColor = UIColor.white
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.addTarget(self, action: #selector(handlePlay), for: .touchUpInside)
+        return button
+    }()
     
     let textChat: UITextView = {
         let text = UITextView()
@@ -52,11 +71,37 @@ class RoomChatMessageViewCell: UICollectionViewCell {
         imageMess.isUserInteractionEnabled = true
         return imageMess
     }()
-    
+  
     @objc func handleZoom(tapGesture: UITapGestureRecognizer){
+        
+        if message?.videoUrl != nil{
+            return
+        }
+        
         if let imageView = tapGesture.view as? UIImageView{
             self.roomChatController?.performZoomInfoStartingImageView(startingImageView: imageView)
         }
+    }
+    
+    var playerlayer: AVPlayerLayer?
+    var player: AVPlayer?
+    
+    @objc func handlePlay(){
+        if let videoUrlString = message?.videoUrl, let url = URL(string: videoUrlString){
+            player = AVPlayer(url: url)
+            playerlayer = AVPlayerLayer(player: player)
+            playerlayer?.frame = bubblesView.bounds
+            bubblesView.layer.addSublayer(playerlayer!)
+            player?.play()
+            activityIndicatorView.startAnimating()
+            playButton.isHidden = true
+        }
+    }
+    
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        playerlayer?.removeFromSuperlayer()
+        player?.pause()
     }
     
     var bubbleWidthAnchor: NSLayoutConstraint?
@@ -77,6 +122,22 @@ class RoomChatMessageViewCell: UICollectionViewCell {
         messageImage.topAnchor.constraint(equalTo: bubblesView.topAnchor).isActive = true
         messageImage.widthAnchor.constraint(equalTo: bubblesView.widthAnchor).isActive = true
         messageImage.heightAnchor.constraint(equalTo: bubblesView.heightAnchor).isActive = true
+        
+        //play button
+        bubblesView.addSubview(playButton)
+        
+        playButton.centerXAnchor.constraint(equalTo: bubblesView.centerXAnchor).isActive = true
+        playButton.centerYAnchor.constraint(equalTo: bubblesView.centerYAnchor).isActive = true
+        playButton.widthAnchor.constraint(equalToConstant: 60).isActive = true
+        playButton.heightAnchor.constraint(equalToConstant: 60).isActive = true
+        
+        //loading
+        bubblesView.addSubview(activityIndicatorView)
+        
+        activityIndicatorView.centerXAnchor.constraint(equalTo: bubblesView.centerXAnchor).isActive = true
+        activityIndicatorView.centerYAnchor.constraint(equalTo: bubblesView.centerYAnchor).isActive = true
+        activityIndicatorView.widthAnchor.constraint(equalToConstant: 50).isActive = true
+        activityIndicatorView.heightAnchor.constraint(equalToConstant: 50).isActive = true
         
         //bubbles view
         bubbleRightAnchor = bubblesView.rightAnchor.constraint(equalTo: self.rightAnchor, constant: -8)

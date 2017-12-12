@@ -8,6 +8,7 @@
 
 import UIKit
 import Firebase
+import SVProgressHUD
 
 extension LoginController: UIImagePickerControllerDelegate,UINavigationControllerDelegate{
     
@@ -50,11 +51,13 @@ extension LoginController: UIImagePickerControllerDelegate,UINavigationControlle
             self.createAlert(title: "Warning", message: "Please input name, email, password !!!")
             return
         }else{
+            SVProgressHUD.show(withStatus: "Please wait")
             Auth.auth().createUser(withEmail: email, password: password, completion: { (user, error) in
                 if error != nil {
                     //registration failure
                     print(error)
                     self.createAlert(title: "Error", message: "You can't sign up please check email!!!")
+                    SVProgressHUD.dismiss()
                     return
                 }else{
                     //registration successful
@@ -64,7 +67,7 @@ extension LoginController: UIImagePickerControllerDelegate,UINavigationControlle
                     
                     let nameImage = NSUUID().uuidString
                     let userId = Auth.auth().currentUser?.uid
-                    let storageRef = Storage.storage().reference().child(userId!).child("\(nameImage).jpg")
+                    let storageRef = Storage.storage().reference().child("image_profile").child(userId!).child("\(nameImage).jpg")
                     
                     if let profileImage = self.profileImageView.image, let uploadData = UIImageJPEGRepresentation(self.profileImageView.image!, 0.1){
                         
@@ -78,6 +81,7 @@ extension LoginController: UIImagePickerControllerDelegate,UINavigationControlle
                                 let values = ["name": name,"email": email,"profileImageUrl": profileImageViewUrl]
                                 self.registerUserIntoDatabase(uid: uid, values:  values as [String : AnyObject])
                                 self.createAlert(title: "", message: "Register success!!!")
+                                SVProgressHUD.dismiss()
                             }
                             
                         })
@@ -95,6 +99,7 @@ extension LoginController: UIImagePickerControllerDelegate,UINavigationControlle
                 
                 //User email exist
                 self.createAlert(title: "Error", message: "You can't sign up please check name!!!")
+                SVProgressHUD.dismiss()
             }
             else{
                 //email does not [email id available]
@@ -131,17 +136,19 @@ extension LoginController: UIImagePickerControllerDelegate,UINavigationControlle
         }
         
         if email.isEmpty || password.isEmpty{
-            self.createAlert(title: "Warning", message: "Please input email, password !!!")
+            SVProgressHUD.showError(withStatus: "Please input email, password !!!")
             return
         }else{
-            
+            SVProgressHUD.show(withStatus: "Please wait")
             Auth.auth().signIn(withEmail: email, password: password, completion: {(user,error) in
              if Reachability.isConnectedToNetwork(){
                 if error != nil{
                     print(error)
-                    self.createAlert(title: "Error", message: "email or password error!!!")
+                    SVProgressHUD.showError(withStatus: "Email or password error!!!")
                     return
                 }
+                SVProgressHUD.showSuccess(withStatus: "")
+                SVProgressHUD.dismiss()
                 self.historychatController?.fetchUserAndSetupNavBarTitle()
                 self.dismiss(animated: true, completion: nil)
                 
